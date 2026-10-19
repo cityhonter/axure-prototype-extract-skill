@@ -34,8 +34,7 @@ description: 从 Axure 网页原型（已发布的 start.html 链接、axshare �
    `mcp__node_repl__js`，主代理自己执行，禁止委托子代理。纯文件处理（digest/校验）用 Bash + node。
 2. **每个 js 单元格都是全新内核**：每次调用都要重新执行 browser-client bootstrap，并重新
    `import` 脚本模块；上个单元格里的变量、tab 绑定一律不复用。
-3. **绝不用 `fullPage` 截图**：大视口下 IAB 截图通道会输出平铺坏图。用 CSS `zoom` 缩放画布 +
-   调整视口高度替代（脚本已内置）。
+3. **截图原生 1:1，小字清晰**：默认按「可见内容真实并集」以**原生 1920×2160 内 1:1** 截图（不得先缩到 1440 再降采样，那会导致小字模糊）；只有设计稿超 1920 宽 / 2160 高才按比例 zoom 压缩。仍**禁用 `fullPage`**（大视口下会输出平铺坏图）。截图前必须先经 about:blank 中转真加载，否则会命中旧版四宫格坏图问题。
 4. **脚本已封装全部脏活**（混淆 data.js 捕获、对象树双键遍历、visible 判定、safeScreenshot
    重试、zoom-fit、changed-detection），**不要重写这些逻辑**，直接 import 调用：
 
@@ -160,7 +159,8 @@ node "C:/Users/EDY/.agents/skills/axure-prototype-extract/scripts/check_coverage
 
 | 症状 | 原因与处理 |
 |---|---|
-| 截图出现 2x2 平铺 | 截图通道坏图：不要 fullPage；重截一次；保持 zoom-fit + 视口高度=内容高（脚本已内置） |
+| 截图出现 2x2 平铺 | 大视口下截图通道的拼接坏图：确保走 about:blank 中转真加载后再截（脚本已内置）；仍出现则重截一次 |
+| 截图大片黑边/内容只占一角 | scrollWidth 被溢出元素撑大：脚本已改用「可见元素并集」测量真实内容宽度 |
 | `agent is not defined` | js 单元格没跑 bootstrap，或模块里直接用了全局 agent——模块必须显式接收 agent 参数 |
 | data.js 捕获 error | data.js 是混淆 IIFE，必须用 `new Function('$axure', text)(stub)` 捕获（脚本已内置）；error 通常是 URL 拼错（页面名需 encodeURIComponent） |
 | 某控件怎么点都没反应 / 点开了别的面板 | 元素 id 跨加载漂移，禁止用 uid 定位；改用 `文字@坐标`；showText 撞车时换面板内唯一的文字（带 `*` 必填字段名、占位文案） |

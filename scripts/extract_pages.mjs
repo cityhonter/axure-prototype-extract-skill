@@ -156,18 +156,34 @@ export async function processPages(nodeRepl, agent, opts) {
       const result = await tab.playwright.evaluate(EXTRACT_FN.replace("__DATAURL__", dataUrl));
       fs.writeFileSync(outDir + "数据/" + prefix + ".json", JSON.stringify(result, null, 1));
 
-      const fit = await tab.playwright.evaluate(`(() => {
-        const W = Math.min(Math.max(document.documentElement.scrollWidth, 1440), 1920);
-        const H = Math.max(document.documentElement.scrollHeight, 900);
-        const zoom = Math.min(1, 1440 / W);
-        if (zoom < 1) { document.documentElement.style.zoom = zoom; }
-        return { designW: W, designH: H, zoom,
-          outW: Math.min(1440, Math.round(W * zoom)),
-          outH: Math.min(2100, Math.round(H * zoom) + 10) };
-      })()`);
+      // 截图尺寸：临时加宽视口量出「可见内容真实并集」，消除溢出元素/黑边干扰；原生 1:1，超限才压缩
+      const measure = `(() => {
+        let maxR = 0, maxB = 0;
+        for (const el of document.querySelectorAll('body *')) {
+          const cs = getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          if (r.right > maxR) maxR = r.right;
+          if (r.bottom > maxB) maxB = r.bottom;
+        }
+        return { w: Math.ceil(maxR), h: Math.ceil(maxB) };
+      })()`;
+      await tab.playwright.evaluate(`(() => { document.documentElement.style.zoom = ''; })()`);
+      const sw = await tab.playwright.evaluate(`document.documentElement.scrollWidth`);
+      if (sw > 1440) {
+        await tab.setViewportSize({ width: Math.min(sw, 3840), height: 1080 });
+        await tab.playwright.waitForTimeout(500);
+      }
+      const m = await tab.playwright.evaluate(measure);
+      const W = Math.min(Math.max(m.w, 1280), 1920);
+      const H = Math.min(Math.max(m.h, 900), 2160);
+      const zoom = Math.min(1, 1920 / W, 2160 / H);
+      if (zoom < 1) await tab.playwright.evaluate(`document.documentElement.style.zoom = ${zoom}`);
       await tab.playwright.waitForTimeout(600);
-      await tab.setViewportSize({ width: fit.outW, height: fit.outH });
+      await tab.setViewportSize({ width: Math.round(W * zoom), height: Math.round(H * zoom) });
       await tab.playwright.waitForTimeout(2000);
+      const fit = { designW: W, designH: H, zoom, outW: Math.round(W * zoom), outH: Math.round(H * zoom) };
 
       const png = await safeScreenshot();
       if (png) fs.writeFileSync(outDir + "截图/" + prefix + ".png", png);

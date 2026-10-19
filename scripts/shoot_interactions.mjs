@@ -165,19 +165,27 @@ function clickSpecCode(spec) {
           report.push({ name, changed: false, clickLog });
           continue;
         }
-        // zoom-fit 放在点击检测之后：resize 重排不应干扰交互状态判定
+        // 截图阶段：量「可见内容真实并集」，原生 1:1（小字清晰）；仅超 1920 宽 / 2160 高才 zoom 压缩
         await tab.playwright.evaluate(`(() => { window.scrollTo(0, 0); return 'ok'; })()`);
         await tab.playwright.waitForTimeout(300);
         const geo = await tab.playwright.evaluate(`(() => {
-          const W = Math.min(Math.max(document.documentElement.scrollWidth, 1440), 1920);
-          const H = Math.max(document.documentElement.scrollHeight, 700);
-          const zoom = Math.min(1, 1440 / W);
-          if (zoom < 1) document.documentElement.style.zoom = zoom;
-          return { outW: Math.min(1440, Math.round(W * zoom)),
-                   outH: Math.max(700, Math.min(Math.round(H * zoom) + 6, 2100)) };
+          let maxR = 0, maxB = 0;
+          for (const el of document.querySelectorAll('body *')) {
+            const cs = getComputedStyle(el);
+            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 4 || r.height < 4) continue;
+            if (r.right > maxR) maxR = r.right;
+            if (r.bottom > maxB) maxB = r.bottom;
+          }
+          return { w: Math.ceil(maxR), h: Math.ceil(maxB) };
         })()`);
-        await tab.setViewportSize({ width: geo.outW, height: geo.outH });
-        await tab.playwright.waitForTimeout(900);
+        const W = Math.min(Math.max(geo.w, 1280), 1920);
+        const H = Math.min(Math.max(geo.h, 900), 2160);
+        const zoom = Math.min(1, 1920 / W, 2160 / H);
+        if (zoom < 1) await tab.playwright.evaluate(`document.documentElement.style.zoom = ${zoom}`);
+        await tab.setViewportSize({ width: Math.round(W * zoom), height: Math.round(H * zoom) });
+        await tab.playwright.waitForTimeout(1000);
 
         const png = await safeScreenshot();
         if (png) {

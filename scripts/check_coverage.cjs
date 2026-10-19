@@ -23,7 +23,7 @@ const frameTexts = new Set();
     const seen = new Set();
     for (const w of (j.widgets || [])) {
       if (w.vis) continue;
-      const t = w.text.replace(/[\u200b\u2060\ufeff\s*]/g, '');
+      const t = w.text.replace(/[\u200b\u2060\ufeff\s*（）()\/、。，；：%]/g, '');
       if (!t || seen.has(t)) continue;
       seen.add(t);
       freq.set(t, (freq.get(t) || 0) + 1);
@@ -70,13 +70,17 @@ for (const f of jsons) {
   const clean = (s) => s.replace(/[\u200b\u2060\ufeff\s*（）()\/、。，；：%]/g, '');
   const isFlagGroup = (s) => /^[\d,，、.]+$/.test(s);
   const isSampleData = (s) =>
-    s.includes('XXX') || s.startsWith('选项一') || s.startsWith('变更了') || s.startsWith('请选择') ||
+    s.includes('XXX') || s.includes('YYYY-MM') || s.startsWith('选项一') || s.startsWith('变更了') || s.startsWith('请选择') ||
     s.includes('张三') || s.includes('李四') || /20\d{2}-\d{2}-\d{2}/.test(s) || /[:：]\d{11}/.test(s) ||
     /^(张三|李四|王强|冯涛|赵娟|何丽|陈静|刘伟|孙磊)/.test(s) ||
     /^[\d:.\-年月日时分秒天小时个次套页吨千克克只%百分类/.]+$/.test(s) ||
-    /^(共|前往)/.test(s);
+    /^(共|前往|10条页)/.test(s) ||
+    // mock 行样本：企业名称N 串联、群组名称-成员、姓名串联、单位/部门名单、通知类型示例值
+    /^(企业名称|群组名称|姓名)([、\-]*(企业名称|群组名称|姓名))*[、\-]*/.test(s) ||
+    (s.includes('、') && /(科|局|中心|园区|企业名称|负责人|姓名|街道)$/.test(s)) ||
+    /^(道路施工提醒|考试通知|灾害预警|会议通知)$/.test(s);
   const isTemplateText = (s) =>
-    s.startsWith('支持上传多个') || s.startsWith('只能上传单个文件') || s === '点击上传' ||
+    s.startsWith('支持上传') || s.startsWith('只能上传单个文件') || s === '点击上传' ||
     /^(填报说明|功能说明)/.test(s);
   const hiddenAll = (j.widgets || []).filter(w => !w.vis && clean(w.text) && !isFlagGroup(clean(w.text)));
   const hidden = hiddenAll.filter(w => {
@@ -85,7 +89,7 @@ for (const f of jsons) {
   });
   row.hiddenTexts = { count: hidden.length, sample: [...new Set(hidden.map(w => clean(w.text)))].slice(0, 8) };
   if (hidden.length) {
-    const docNorm = doc.replace(/[^A-Za-z0-9\u4e00-\u9fa5\u00b3]/g, '');
+    const docNorm = doc.replace(/[^A-Za-z0-9\u4e00-\u9fa5\u00b3\u002d]/g, '');
     const uncovered = hidden.filter(w => {
       const t = clean(w.text);
       if (docNorm.includes(t.slice(0, 12))) return false;
